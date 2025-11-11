@@ -1,8 +1,7 @@
-import jwt from 'jsonwebtoken';
+import supabase from '../config/supabase.js';
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
-    // Get token from header
     const authHeader = req.headers.authorization;
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -12,17 +11,31 @@ const authMiddleware = (req, res, next) => {
       });
     }
 
-    const token = authHeader.split(' ')[1];
+    const token = authHeader.replace('Bearer ', '');
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Verify với Supabase Auth
+    const { data: { user }, error } = await supabase.auth.getUser(token);
     
+    if (error) throw error;
+
+    // Lấy user data từ database
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (userError) throw userError;
+
     // Attach user to request
-    req.user = decoded;
+    req.user = userData;
+    req.authUser = user;
     
     next();
   } catch (error) {
-    if (error.name === 'TokenExpiredError') {
+    console.error('Auth middleware error:', error);
+    
+    if (error.message?.includes('JWT expired')) {
       return res.status(401).json({
         success: false,
         message: 'Token đã hết hạn'

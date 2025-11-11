@@ -23,58 +23,45 @@ const Login = () => {
   };  
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
 
-    try {
-      // Sign in with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+  try {
+    // Gọi backend API
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
         email: formData.email,
-        password: formData.password,
-      });
+        password: formData.password
+      })
+    });
 
-      if (authError) throw authError;
+    const data = await response.json();
 
-      // Get user details from users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select(`
-          *,
-          company:companies(*)
-        `)
-        .eq('email', formData.email)
-        .single();
-
-      if (userError) throw userError;
-
-      // Check if user is admin or supervisor
-      if (!['admin', 'supervisor'].includes(userData.role)) {
-        await supabase.auth.signOut();
-        setError('Bạn không có quyền truy cập hệ thống này');
-        return;
-      }
-
-      // Store user info in localStorage
-      localStorage.setItem('user', JSON.stringify(userData));
-      
-      // Redirect to the page they tried to visit or dashboard
-      const from = location.state?.from?.pathname || '/dashboard';
-      navigate(from, { replace: true });
-    } catch (err) {
-      console.error('Login error:', err);
-      
-      if (err.message.includes('Invalid login credentials')) {
-        setError('Email hoặc mật khẩu không chính xác');
-      } else if (err.message.includes('Email not confirmed')) {
-        setError('Vui lòng xác nhận email trước khi đăng nhập');
-      } else {
-        setError(err.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
-      }
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(data.message || 'Đăng nhập thất bại');
     }
-  };
+
+    // Lưu session và user info
+    localStorage.setItem('supabase_session', JSON.stringify(data.session));
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('access_token', data.session.access_token);
+
+    // Redirect
+    const from = location.state?.from?.pathname || '/dashboard';
+    navigate(from, { replace: true });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    setError(err.message || 'Đăng nhập thất bại');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">

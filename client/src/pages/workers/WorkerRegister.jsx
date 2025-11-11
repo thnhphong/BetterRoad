@@ -49,14 +49,14 @@ const WorkerRegister = () => {
         navigate('/login');
         return;
       }
-
+3
       // Check if user has company_id or is a company owner
       if (!userData.company_id) {
         // If no company_id, check if this user owns a company
         const { data: companyData, error: companyError } = await supabase
           .from('companies')
           .select('id')
-          .eq('email', userData.email)
+          .eq('email', userData?.email)
           .single();
 
         if (companyError || !companyData) {

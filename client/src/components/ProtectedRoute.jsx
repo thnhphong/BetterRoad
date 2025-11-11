@@ -1,47 +1,27 @@
-// client/src/components/auth/ProtectedRoute.jsx
-import { useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { Navigate } from 'react-router-dom';
 
 const ProtectedRoute = ({ children }) => {
-  const [loading, setLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
-  const location = useLocation();
-
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      
-      if (error) throw error;
-      
-      setAuthenticated(!!session);
-    } catch (error) {
-      console.error('Auth check error:', error);
-      setAuthenticated(false);
-    } finally {
-      setLoading(false);
+  const token = localStorage.getItem('access_token');
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  // Check if token expired (optional)
+  try {
+    const session = JSON.parse(localStorage.getItem('supabase_session'));
+    const expiresAt = session?.expires_at;
+    
+    if (expiresAt && Date.now() / 1000 > expiresAt) {
+      // Token expired
+      localStorage.clear();
+      return <Navigate to="/login" replace />;
     }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang kiểm tra xác thực...</p>
-        </div>
-      </div>
-    );
+  } catch (err) {
+    console.error('Session check error:', err);
   }
-
-  if (!authenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
+  
   return children;
 };
 

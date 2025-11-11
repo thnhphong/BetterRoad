@@ -51,93 +51,55 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+  e.preventDefault();
+  
+  if (!validateForm()) return;
 
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
 
-    try {
-      // Step 1: Create auth user with Supabase
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+  try {
+    // Gọi backend API thay vì trực tiếp Supabase
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        companyName: formData.companyName,
         email: formData.email,
         password: formData.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          data: {
-            company_name: formData.companyName,
-          }
-        }
-      });
+        phone: formData.phone,
+        address: formData.address
+      })
+    });
 
-      if (authError) throw authError;
+    const data = await response.json();
 
-      // Step 2: Create company record
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .insert({
-          name: formData.companyName,
-          email: formData.email,
-          phone: formData.phone || null,
-          address: formData.address || null,
-        })
-        .select()
-        .single();
-
-      if (companyError) {
-        // Rollback: delete auth user if company creation fails
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        throw companyError;
-      }
-
-      // Step 3: Create admin user record in users table
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          company_id: companyData.id,
-          name: formData.companyName + ' Admin',
-          email: formData.email,
-          role: 'admin',
-          phone: formData.phone || null,
-          is_active: true,
-        });
-
-      if (userError) {
-        // Rollback: delete company and auth user if user creation fails
-        await supabase.from('companies').delete().eq('id', companyData.id);
-        await supabase.auth.admin.deleteUser(authData.user.id);
-        throw userError;
-      }
-
-      // Success!
-      setSuccess(true);
-      
-      // Show success message for 3 seconds then redirect
-      setTimeout(() => {
-        navigate('/login', { 
-          state: { 
-            message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.' 
-          } 
-        });
-      }, 3000);
-
-    } catch (err) {
-      console.error('Register error:', err);
-      
-      if (err.message.includes('duplicate key')) {
-        setError('Email này đã được sử dụng');
-      } else if (err.message.includes('User already registered')) {
-        setError('Email này đã được đăng ký');
-      } else {
-        setError(err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
-      }
-    } finally {
-      setLoading(false);
+    if (!response.ok) {
+      throw new Error(data.message || 'Đăng ký thất bại');
     }
-  };
+
+    // Success
+    setSuccess(true);
+    
+    setTimeout(() => {
+      navigate('/login', { 
+        state: { 
+          message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.' 
+        } 
+      });
+    }, 3000);
+
+  } catch (err) {
+    console.error('Register error:', err);
+    setError(err.message || 'Đăng ký thất bại');
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   if (success) {
     return (
