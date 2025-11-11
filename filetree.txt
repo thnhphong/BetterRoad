@@ -1,153 +1,113 @@
+#dùng ES6 module(import, export)
+#dùng TypeORM để truy vấn cơ sở dữ liệu
+#
+
+
+
+
+
+
 betterroad/
 ├── client/                          # React frontend application
 │   ├── public/
-│   │   ├── index.html
+│   │   ├── images/   #chỗ chứa ảnh trang trí cho cái web
 │   │   └── favicon.ico
 │   ├── src/
-│   │   ├── components/              # Reusable UI components
-│   │   │   ├── common/              # Shared components
+│   │   ├── components/       
+│   │   │   ├── common/            
+│   │   │   │   ├── Alert.jsx
 │   │   │   │   ├── Button.jsx
-│   │   │   │   ├── Input.jsx
-│   │   │   │   ├── Card.jsx
+│   │   │   │   ├── Loading.jsx
 │   │   │   │   ├── Modal.jsx
-│   │   │   │   └── Loader.jsx
-│   │   │   ├── layout/              # Layout components
-│   │   │   │   ├── Header.jsx
-│   │   │   │   ├── Sidebar.jsx
+│   │   │   ├── damage/              
+│   │   │   │   ├── DamageCard.jsx
+│   │   │   │   ├── DamageDetail.jsx
+│   │   │   │   ├── DamageFilter.jsx
+│   │   │   ├── layout/         
 │   │   │   │   ├── Footer.jsx
-│   │   │   │   └── Navigation.jsx
-│   │   │   ├── enterprise/          # Enterprise-specific components
-│   │   │   │   ├── EnterpriseDashboard.jsx
-│   │   │   │   ├── StaffList.jsx
-│   │   │   │   ├── StaffForm.jsx
-│   │   │   │   ├── SurveyAssignment.jsx
-│   │   │   │   └── StatisticsCard.jsx
-│   │   │   ├── staff/               # Staff-specific components
-│   │   │   │   ├── StaffDashboard.jsx
-│   │   │   │   ├── SurveyList.jsx
-│   │   │   │   ├── SurveyForm.jsx
+│   │   │   │   ├── Navbar.jsx
+│   │   │   │   ├── Sidebar.jsx                   #Sidebar của dashboard(gồm )
+│   │   │   ├── map/               
+│   │   │   │   ├── DamageMarker.jsx
+│   │   │   │   ├── Mapview.jsx
+│   │   │   │   ├── Roadlayer.jsx
 │   │   │   │   └── ImageCapture.jsx
-│   │   │   ├── survey/              # Survey management components
-│   │   │   │   ├── SurveyCard.jsx
-│   │   │   │   ├── SurveyDetails.jsx
-│   │   │   │   ├── LocationPicker.jsx
-│   │   │   │   └── SurveyHistory.jsx
-│   │   │   └── pothole/             # Pothole detection components
-│   │   │       ├── PotholeScanner.jsx
-│   │   │       ├── PotholeList.jsx
-│   │   │       ├── PotholeDetails.jsx
-│   │   │       └── VulnerabilityChart.jsx
-│   │   ├── pages/                   # Page components
+│   │   │   ├── task/            
+│   │   │   │   ├── TaskCard.jsx
+│   │   │   │   ├── TaskForm.jsx
+│   │   │   │   ├── TaskStatus.jsx
+│   │   │   └── ProtectedRoute.jsx
+│   │   ├── lib/
+│   │   │   ├── supabase.js
+│   │   ├── pages/                
 │   │   │   ├── auth/
-│   │   │   │   ├── Login.jsx
-│   │   │   │   ├── Register.jsx
-│   │   │   │   └── ForgotPassword.jsx
-│   │   │   ├── enterprise/
-│   │   │   │   ├── Dashboard.jsx
-│   │   │   │   ├── StaffManagement.jsx
-│   │   │   │   ├── SurveyManagement.jsx
-│   │   │   │   └── Profile.jsx
-│   │   │   ├── staff/
-│   │   │   │   ├── Dashboard.jsx
-│   │   │   │   ├── MySurveys.jsx
-│   │   │   │   └── Profile.jsx
-│   │   │   └── NotFound.jsx
-│   │   ├── services/                # API and external services
-│   │   │   ├── api.js               # Axios configuration
-│   │   │   ├── authService.js       # Authentication APIs
-│   │   │   ├── enterpriseService.js # Enterprise APIs
-│   │   │   ├── staffService.js      # Staff APIs
-│   │   │   ├── surveyService.js     # Survey APIs
-│   │   │   ├── potholeService.js    # Pothole detection APIs
-│   │   │   └── supabaseClient.js    # Supabase client setup
-│   │   ├── hooks/                   # Custom React hooks
-│   │   │   ├── useAuth.js
-│   │   │   ├── useGeolocation.js
-│   │   │   ├── useSurvey.js
-│   │   │   └── usePothole.js
-│   │   ├── context/                 # React Context providers
-│   │   │   ├── AuthContext.jsx
-│   │   │   ├── EnterpriseContext.jsx
-│   │   │   └── ThemeContext.jsx
-│   │   ├── utils/                   # Utility functions
-│   │   │   ├── constants.js
-│   │   │   ├── validators.js
-│   │   │   ├── formatters.js
-│   │   │   └── helpers.js
-│   │   ├── styles/                  # Global styles
-│   │   │   ├── index.css
-│   │   │   └── tailwind.css
-│   │   ├── assets/                  # Static assets
-│   │   │   ├── images/
-│   │   │   └── icons/
-│   │   ├── App.jsx                  # Main app component
-│   │   ├── index.js                 # Entry point
-│   │   └── routes.js                # Route definitions
-│   ├── package.json
+│   │   │   │   ├── AuthCallback.jsx
+│   │   │   ├── workers/
+│   │   │   │   ├── WorkerDetail.jsx
+│   │   │   │   ├── WorkerList.jsx
+│   │   │   │   ├── WorkerRegister.jsx
+│   │   │   ├── DamageList.jsx
+│   │   │   │── Dashboard.jsx   
+│   │   │   └── Home.jsx
+│   │   │   └── Login.jsx
+│   │   │   └── Register.jsx
+│   │   │   └── Report.jsx
+│   │   │   └── RoadMap.jsx
+│   │   │   └── Setings.jsx
+│   │   │   └── Taskmanagement.jsx
+│   │   |---styles/                  
+│   │   │       |── index.css
+│   │   │       |── tailwind.css
+│   │   ├── App.jsx                  
+│   │   ├── index.css              
+│   │   └── main.jsx             
+│   ├── .env
+│   ├── index.html
+│   └── jackage.json
+│   ├── postcss.config.js
 │   ├── tailwind.config.js
-│   └── .env.example
-│
-├── server/                          # Node.js backend application
+│   └── vite.config.js
+|── mobile     #app quét đường
+|
+| 
+|
+|
+|
+|
+|
+|
+
+├── server/                       
 │   ├── src/
-│   │   ├── config/                  # Configuration files
-│   │   │   ├── database.js          # Supabase configuration
-│   │   │   ├── app.js               # Express app configuration
-│   │   │   └── constants.js
-│   │   ├── controllers/             # Route controllers
+│   │   ├── config/                  
+│   │   │   ├── supabase.js        #cấu hình supabase
+│   │   ├── controllers/            
 │   │   │   ├── authController.js
-│   │   │   ├── enterpriseController.js
-│   │   │   ├── staffController.js
-│   │   │   ├── surveyController.js
-│   │   │   └── potholeController.js
-│   │   ├── middleware/              # Express middleware
-│   │   │   ├── authMiddleware.js
-│   │   │   ├── validationMiddleware.js
-│   │   │   ├── errorMiddleware.js
-│   │   │   └── uploadMiddleware.js
-│   │   ├── routes/                  # API routes
-│   │   │   ├── authRoutes.js
-│   │   │   ├── enterpriseRoutes.js
-│   │   │   ├── staffRoutes.js
-│   │   │   ├── surveyRoutes.js
-│   │   │   ├── potholeRoutes.js
-│   │   │   └── index.js
-│   │   ├── services/                # Business logic
-│   │   │   ├── authService.js
-│   │   │   ├── enterpriseService.js
-│   │   │   ├── staffService.js
-│   │   │   ├── surveyService.js
-│   │   │   ├── potholeService.js
-│   │   │   └── imageProcessingService.js
-│   │   ├── models/                  # Database models/schemas
-│   │   │   ├── Enterprise.js
-│   │   │   ├── Staff.js
-│   │   │   ├── Survey.js
-│   │   │   └── Pothole.js
-│   │   ├── utils/                   # Utility functions
-│   │   │   ├── validators.js
-│   │   │   ├── logger.js
-│   │   │   ├── emailService.js
-│   │   │   └── helpers.js
-│   │   └── index.js                 # Server entry point
+│   │   │   ├── damageController.js
+│   │   │   ├── roadController.js
+│   │   │   └── taskController.js
+│   │   ├── middleware/             
+│   │   │   ├── auth.js
+│   │   ├── routes/              
+│   │   │   ├── auth.js
+│   │   │   ├── damage.js
+│   │   │   ├── index.js
+│   │   │   ├── roads.js
+│   │   │   └── task.js
+│   │   ├── services/             
+│   │   │   ├── aiService.js
+│   │   │   ├── uploadService.js
+│   │   ├── utils/                 # tiện ích ( thêm gì thêm )
+│   │   │   ├── 
+│   │   │   ├── 
+│   │   │   ├── 
+│   │   │   └── 
+│   │   └── .env             
+│   │   └── package.json 
+|   |-- .gitignore
 │   ├── package.json
-│   └── .env.example
-│
-├── database/                        # Database scripts and migrations
-│   ├── migrations/
-│   │   ├── 001_create_enterprises.sql
-│   │   ├── 002_create_staff.sql
-│   │   ├── 003_create_surveys.sql
-│   │   └── 004_create_potholes.sql
-│   ├── seeds/
-│   │   └── sample_data.sql
-│   └── schema.sql                   # Complete database schema
-│
-├── docs/                            # Documentation
-│   ├── API.md                       # API documentation
-│   ├── DATABASE.md                  # Database schema documentation
-│   ├── DEPLOYMENT.md                # Deployment guide
-│   └── CONTRIBUTING.md              # Contribution guidelines
-│
-├── .gitignore
-├── README.md
-└── LICENSE
+
+
+
+
+

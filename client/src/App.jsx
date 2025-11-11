@@ -1,31 +1,87 @@
-import { useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import RoadMap from './pages/RoadMap';
+import DamageList from './pages/DamageList';
+import TaskManagement from './pages/TaskManagement';
+import Reports from './pages/Reports';
+import Settings from './pages/Settings';
+import ProtectedRoute from './components/ProtectedRoute';
+import WorkerList from "./pages/workers/WorkerList";
+import WorkerDetail from "./pages/workers/WorkerDetail";
+import WorkerRegister from "./pages/workers/WorkerRegister";
+
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md text-center">
-        <h1 className="text-4xl font-bold text-blue-600 mb-4">
-          🛣️ BetterRoad
-        </h1>
-        <p className="text-gray-600 mb-6">
-          Road Management System
-        </p>
-        <div className="space-y-4">
-          <button
-            onClick={() => setCount((count) => count + 1)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition"
-          >
-            Count is {count}
-          </button>
-          <p className="text-sm text-gray-500">
-            Click the button to test React
-          </p>
-        </div>
-      </div>
-    </div>
-  )
+    <Router>
+      <Routes>
+        {/* Public Routes */} 
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* Protected Routes - Require Authentication */}
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/map" element={
+          <ProtectedRoute>
+            <RoadMap />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/damages" element={
+          <ProtectedRoute>
+            <DamageList />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/tasks" element={
+          <ProtectedRoute>
+            <TaskManagement />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/reports" element={
+          <ProtectedRoute>
+            <Reports />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        } />
+        <Route path="/workers" element={
+        <ProtectedRoute>
+          <WorkerList />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/workers/register" element={
+        <ProtectedRoute>
+          <WorkerRegister />
+        </ProtectedRoute>
+      } />
+
+        <Route path="/workers/:id" element={
+          <ProtectedRoute>
+            <WorkerDetail />
+          </ProtectedRoute>
+        } />
+
+        {/* 404 Route */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
