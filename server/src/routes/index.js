@@ -1,35 +1,25 @@
 import express from 'express';
 import authRoutes from './auth.js';
+
+console.log('🔵 Routes index.js loading...');
+console.log('authRoutes type:', typeof authRoutes);
+
 const router = express.Router();
-router.use('/auth', authRoutes)
-// Welcome route
-router.get('/', (req, res) => {
+
+// Health check endpoint
+router.get('/health', (req, res) => {
+  console.log('✅ Health check endpoint hit');
   res.json({
     success: true,
-    message: 'Welcome to BetterRoad API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/health',
-      api: '/api'
-    }
+    message: 'API is running',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
   });
 });
 
-// Placeholder routes (to be implemented)
-router.get('/enterprises', (req, res) => {
-  res.json({ success: true, message: 'Enterprises endpoint', data: [] });
-});
-
-router.get('/staff', (req, res) => {
-  res.json({ success: true, message: 'Staff endpoint', data: [] });
-});
-
-router.get('/surveys', (req, res) => {
-  res.json({ success: true, message: 'Surveys endpoint', data: [] });
-});
-
-router.get('/potholes', (req, res) => {
-  res.json({ success: true, message: 'Potholes endpoint', data: [] });
-});
+// Mount routes
+console.log('🔵 Mounting /auth routes...');
+router.use('/auth', authRoutes);
+console.log('✅ Auth routes mounted');
 
 export default router;

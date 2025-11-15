@@ -1,8 +1,7 @@
-// client/src/pages/auth/Register.jsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { UserPlus, Mail, Lock, Building, Phone, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import api from '../../lib/axios';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -51,53 +50,47 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  if (!validateForm()) return;
+    e.preventDefault();
+    
+    if (!validateForm()) return;
 
-  setLoading(true);
-  setError('');
+    setLoading(true);
+    setError('');
 
-  try {
-    // Gọi backend API thay vì trực tiếp Supabase
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    try {
+      // Gọi backend API qua axios instance
+      const { data } = await api.post('/auth/register', {
         companyName: formData.companyName,
         email: formData.email,
         password: formData.password,
         phone: formData.phone,
         address: formData.address
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Đăng ký thất bại');
-    }
-
-    // Success
-    setSuccess(true);
-    
-    setTimeout(() => {
-      navigate('/login', { 
-        state: { 
-          message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.' 
-        } 
       });
-    }, 3000);
 
-  } catch (err) {
-    console.error('Register error:', err);
-    setError(err.message || 'Đăng ký thất bại');
-  } finally {
-    setLoading(false);
-  }
-};
+      if (!data.success) {
+        throw new Error(data.message || 'Đăng ký thất bại');
+      }
+
+      console.log('✅ Registration successful:', data.user);
+
+      // Success
+      setSuccess(true);
+      
+      setTimeout(() => {
+        navigate('/login', { 
+          state: { 
+            message: 'Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.' 
+          } 
+        });
+      }, 3000);
+
+    } catch (err) {
+      console.error('❌ Register error:', err);
+      setError(err.response?.data?.message || err.message || 'Đăng ký thất bại');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (success) {
     return (
@@ -109,10 +102,10 @@ const Register = () => {
             </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Đăng ký thành công!</h2>
             <p className="text-gray-600 mb-6">
-              Chúng tôi đã gửi email xác nhận đến <strong>{formData.email}</strong>
+              Tài khoản của bạn đã được tạo thành công.
             </p>
             <p className="text-sm text-gray-500 mb-6">
-              Vui lòng kiểm tra hộp thư của bạn và nhấp vào liên kết xác nhận để kích hoạt tài khoản.
+              Email: <strong>{formData.email}</strong>
             </p>
             <div className="text-sm text-gray-500">
               Đang chuyển hướng đến trang đăng nhập...

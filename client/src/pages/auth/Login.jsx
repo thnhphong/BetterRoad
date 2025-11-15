@@ -1,8 +1,7 @@
-// client/src/pages/auth/Login.jsx
 import { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import api from '../../lib/axios';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -20,48 +19,41 @@ const Login = () => {
       [e.target.name]: e.target.value
     });
     setError('');
-  };  
+  };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  try {
-    // Gọi backend API
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
+    try {
+      // Gọi backend API qua axios instance
+      const { data } = await api.post('/auth/login', {
         email: formData.email,
         password: formData.password
-      })
-    });
+      });
 
-    const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.message || 'Đăng nhập thất bại');
+      }
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Đăng nhập thất bại');
+      console.log('✅ Login successful:', data.user);
+
+      // Lưu access token và user info
+      localStorage.setItem('access_token', data.session.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      // Redirect (refresh_token đã được lưu trong httpOnly cookie)
+      const from = location.state?.from?.pathname || '/dashboard';
+      navigate(from, { replace: true });
+
+    } catch (err) {
+      console.error('❌ Login error:', err);
+      setError(err.response?.data?.message || err.message || 'Đăng nhập thất bại');
+    } finally {
+      setLoading(false);
     }
-
-    // Lưu session và user info
-    localStorage.setItem('supabase_session', JSON.stringify(data.session));
-    localStorage.setItem('user', JSON.stringify(data.user));
-    localStorage.setItem('access_token', data.session.access_token);
-
-    // Redirect
-    const from = location.state?.from?.pathname || '/dashboard';
-    navigate(from, { replace: true });
-
-  } catch (err) {
-    console.error('Login error:', err);
-    setError(err.message || 'Đăng nhập thất bại');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
@@ -82,6 +74,13 @@ const Login = () => {
             <LogIn className="w-6 h-6 text-blue-600" />
             <h2 className="text-2xl font-bold text-gray-900">Đăng nhập</h2>
           </div>
+
+          {/* Show message from registration */}
+          {location.state?.message && (
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-800 text-sm">{location.state.message}</p>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
