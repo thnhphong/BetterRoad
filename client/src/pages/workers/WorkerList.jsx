@@ -27,18 +27,34 @@ const WorkerList = () => {
       // Fetch staff list from API
       const { data } = await api.get('/staff');
 
-      if (data.success && data.data) {
-        setWorkers(data.data);
+      console.log('Staff API response:', data);
+
+      if (data.success) {
+        // Handle both data.data and data (in case data is directly the array)
+        const workersList = data.data || data || [];
+        setWorkers(Array.isArray(workersList) ? workersList : []);
       } else {
         throw new Error(data.message || 'Failed to fetch workers');
       }
     } catch (error) {
       console.error('Error fetching workers:', error);
+      console.error('Error response:', error.response);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
       if (error.response?.status === 401) {
         alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         navigate('/login');
+      } else if (error.response?.status === 404) {
+        alert('Không tìm thấy công ty. Vui lòng đăng nhập lại.');
+        navigate('/login');
       } else {
-        alert(error.response?.data?.message || 'Có lỗi xảy ra khi tải danh sách công nhân');
+        const errorMessage = error.response?.data?.message || error.message || 'Có lỗi xảy ra khi tải danh sách công nhân';
+        console.error('Error message:', errorMessage);
+        alert(errorMessage);
       }
     } finally {
       setLoading(false);

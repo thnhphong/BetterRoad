@@ -20,6 +20,7 @@
     "@supabase/supabase-js": "^2.76.1",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.8.0",
     "compression": "^1.7.4",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -32,6 +33,7 @@
     "multer": "1.4.5-lts.2",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
+    "streamifier": "^0.1.1",
     "typeorm": "^0.3.27"
   },
   "devDependencies": {

@@ -45,9 +45,11 @@ const DamageList = () => {
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [mapLoading, setMapLoading] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchDamages();
@@ -297,6 +299,58 @@ const DamageList = () => {
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
     }));
+  };
+
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setUploadingImages(true);
+
+    try {
+      const uploadPromises = files.map(async (file) => {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+          throw new Error(`${file.name} is not an image file`);
+        }
+
+        // Validate file size (max 5MB)
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`${file.name} is too large. Maximum size is 5MB`);
+        }
+
+        // Create FormData
+        const formData = new FormData();
+        formData.append('image', file);
+
+        // Upload to server (Content-Type will be set automatically by axios for FormData)
+        const { data } = await api.post('/upload/image', formData);
+
+        if (data.success && data.url) {
+          return data.url;
+        } else {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+
+      // Add uploaded URLs to form data
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...uploadedUrls]
+      }));
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      alert(error.response?.data?.error || error.message || 'Có lỗi xảy ra khi tải lên hình ảnh');
+    } finally {
+      setUploadingImages(false);
+    }
   };
 
   const initializeMap = () => {
@@ -937,47 +991,93 @@ const DamageList = () => {
                 {/* Images */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hình ảnh (URL)
+                    Hình ảnh
                   </label>
-                  <div className="flex gap-2 mb-2">
+
+                  {/* File Upload */}
+                  <div className="mb-4">
                     <input
-                      type="url"
-                      placeholder="Nhập URL hình ảnh"
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      onKeyPress={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleImageUrlAdd(e.target.value);
-                          e.target.value = '';
-                        }
-                      }}
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleFileUpload}
+                      disabled={uploadingImages}
+                      className="hidden"
+                      id="image-upload"
                     />
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        const input = e.target.previousElementSibling;
-                        handleImageUrlAdd(input.value);
-                        input.value = '';
-                      }}
-                      className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                    <label
+                      htmlFor="image-upload"
+                      className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg cursor-pointer transition ${uploadingImages
+                        ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                        : 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+                        }`}
                     >
-                      Thêm
-                    </button>
+                      <Upload className="w-5 h-5 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-600">
+                        {uploadingImages ? 'Đang tải lên...' : 'Chọn hình ảnh từ máy tính'}
+                      </span>
+                    </label>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Hỗ trợ: JPG, PNG, GIF (tối đa 5MB mỗi file)
+                    </p>
                   </div>
+
+                  {/* URL Input (Alternative) */}
+                  <div className="mb-4">
+                    <label className="block text-xs text-gray-500 mb-1">Hoặc nhập URL hình ảnh</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://example.com/image.jpg"
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleImageUrlAdd(e.target.value);
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          const input = e.target.previousElementSibling;
+                          handleImageUrlAdd(input.value);
+                          input.value = '';
+                        }}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                      >
+                        Thêm URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Image Preview */}
                   {formData.images.length > 0 && (
                     <div className="space-y-2">
-                      {formData.images.map((url, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                          <span className="flex-1 text-sm text-gray-600 truncate">{url}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleImageRemove(index)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ))}
+                      <p className="text-sm text-gray-600">Đã thêm {formData.images.length} hình ảnh:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {formData.images.map((url, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={url}
+                              alt={`Damage image ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200"
+                              onError={(e) => {
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect width="100" height="100" fill="%23f3f4f6"/%3E%3Ctext x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3EImage Error%3C/text%3E%3C/svg%3E';
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleImageRemove(index)}
+                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

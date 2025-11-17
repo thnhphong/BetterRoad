@@ -113,6 +113,11 @@ export const getStaffList = async (req, res) => {
   try {
     const companyId = req.user.companyId; // From authenticated company user
 
+    if (!companyId) {
+      console.error('No company ID in request');
+      return errorResponse(res, 'Company ID not found', 400);
+    }
+
     const { data: staff, error } = await supabase
       .from('staff')
       .select('*')
@@ -121,11 +126,15 @@ export const getStaffList = async (req, res) => {
 
     if (error) {
       console.error('Get staff list error:', error);
-      return errorResponse(res, 'Failed to fetch staff list', 500);
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      return errorResponse(res, error.message || 'Failed to fetch staff list', 500);
     }
 
+    // Handle null or undefined data
+    const staffList = staff || [];
+
     // Transform data to match frontend expectations
-    const formattedStaff = staff.map(s => ({
+    const formattedStaff = staffList.map(s => ({
       id: s.id,
       name: s.name,
       email: s.email,
@@ -140,7 +149,8 @@ export const getStaffList = async (req, res) => {
     return successResponse(res, formattedStaff, 'Staff list retrieved successfully');
   } catch (error) {
     console.error('Get staff list error:', error);
-    return errorResponse(res, 'Failed to fetch staff list', 500);
+    console.error('Error stack:', error.stack);
+    return errorResponse(res, error.message || 'Failed to fetch staff list', 500);
   }
 };
 
