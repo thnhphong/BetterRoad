@@ -6,7 +6,7 @@ import {
   UserX, Phone, Mail, Calendar, Download
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
-import { supabase } from '../../lib/supabase';
+import api from '../../lib/axios';
 
 const WorkerList = () => {
   const navigate = useNavigate();
@@ -24,53 +24,58 @@ const WorkerList = () => {
     try {
       setLoading(true);
 
-      // Sử dụng utility function
-      const companyId = await getCurrentCompanyId();
+      // Fetch staff list from API
+      const { data } = await api.get('/staff');
 
-      if (!companyId) {
-        console.error('No company ID found');
-        alert('Không tìm thấy công ty. Vui lòng đăng nhập lại.');
-        navigate('/login');
-        return;
+      if (data.success && data.data) {
+        setWorkers(data.data);
+      } else {
+        throw new Error(data.message || 'Failed to fetch workers');
       }
-
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('company_id', companyId)
-        .eq('role', 'worker')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setWorkers(data || []);
     } catch (error) {
       console.error('Error fetching workers:', error);
+      if (error.response?.status === 401) {
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        navigate('/login');
+      } else {
+        alert(error.response?.data?.message || 'Có lỗi xảy ra khi tải danh sách công nhân');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleToggleStatus = async (workerId, currentStatus) => {
-    const { error } = await supabase
-      .from('users')
-      .update({ is_active: !currentStatus })
-      .eq('id', workerId);
+    try {
+      const { data } = await api.patch(`/staff/${workerId}/status`, {
+        is_active: !currentStatus
+      });
 
-    if (!error) {
-      fetchWorkers();
+      if (data.success) {
+        fetchWorkers();
+      } else {
+        alert(data.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
     }
   };
 
   const handleDeleteWorker = async (workerId) => {
     if (!confirm('Bạn có chắc muốn xóa công nhân này?')) return;
 
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', workerId);
+    try {
+      const { data } = await api.delete(`/staff/${workerId}`);
 
-    if (!error) {
-      fetchWorkers();
+      if (data.success) {
+        fetchWorkers();
+      } else {
+        alert(data.message || 'Có lỗi xảy ra khi xóa công nhân');
+      }
+    } catch (error) {
+      console.error('Error deleting worker:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa công nhân');
     }
   };
 
@@ -257,8 +262,8 @@ const WorkerList = () => {
                       <button
                         onClick={() => handleToggleStatus(worker.id, worker.is_active)}
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${worker.is_active
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
                           }`}
                       >
                         {worker.is_active ? 'Hoạt động' : 'Không hoạt động'}

@@ -5,7 +5,7 @@ import {
   User, Mail, Phone, Lock, Save, X
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
-import { supabase } from '../../lib/supabase';
+import api from '../../lib/axios';
 
 const WorkerRegister = () => {
   const navigate = useNavigate();
@@ -17,7 +17,7 @@ const WorkerRegister = () => {
     password: '',
     confirmPassword: '',
     phone: '',
-    avatar_url: '',
+    avatar: '',
   });
   const [errors, setErrors] = useState({});
 
@@ -28,60 +28,31 @@ const WorkerRegister = () => {
 
   const checkAuth = async () => {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-
-      if (error || !session) {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
         alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         navigate('/login');
         return;
       }
 
-      // Get user data from users table
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, email, name, company_id, role')
-        .eq('email', session.user.email)
-        .single();
+      // Get user data from API
+      const { data } = await api.get('/auth/me');
 
-      if (userError || !userData) {
-        console.error('User data error:', userError);
+      if (data.success && data.data && data.data.user) {
+        const userData = data.data.user;
+        // Store user info for display
+        setCurrentUser({
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+        });
+      } else {
         alert('Không tìm thấy thông tin người dùng. Vui lòng đăng nhập lại.');
         navigate('/login');
-        return;
       }
-      3
-      // Check if user has company_id or is a company owner
-      if (!userData.company_id) {
-        // If no company_id, check if this user owns a company
-        const { data: companyData, error: companyError } = await supabase
-          .from('companies')
-          .select('id')
-          .eq('email', userData?.email)
-          .single();
-
-        if (companyError || !companyData) {
-          alert('Tài khoản của bạn chưa được liên kết với công ty nào. Vui lòng liên hệ quản trị viên.');
-          navigate('/');
-          return;
-        }
-
-        // Update user with company_id
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ company_id: companyData.id })
-          .eq('id', userData.id);
-
-        if (updateError) {
-          console.error('Update company_id error:', updateError);
-        }
-
-        userData.company_id = companyData.id;
-      }
-
-      setCurrentUser(userData);
     } catch (error) {
       console.error('Auth check error:', error);
-      alert('Có lỗi xảy ra. Vui lòng đăng nhập lại.');
+      alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
       navigate('/login');
     }
   };
@@ -124,7 +95,7 @@ const WorkerRegister = () => {
       return;
     }
 
-    if (!currentUser || !currentUser.company_id) {
+    if (!currentUser) {
       alert('Không tìm thấy thông tin công ty. Vui lòng tải lại trang.');
       return;
     }
@@ -132,40 +103,35 @@ const WorkerRegister = () => {
     try {
       setLoading(true);
 
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Register staff via API
+      const { data } = await api.post('/staff/register', {
+        name: formData.name,
         email: formData.email,
         password: formData.password,
+        phone: formData.phone || null,
+        avatar: formData.avatar || null,
+        role: 'worker', // Default role for workers
       });
 
-      if (authError) {
-        console.error('Auth error:', authError);
-        throw authError;
-      }
-
-      // Insert worker into users table
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert({
-          company_id: currentUser.company_id,
-          name: formData.name,
-          email: formData.email,
-          role: 'worker',
-          phone: formData.phone || null,
-          avatar_url: formData.avatar_url || null,
-          is_active: true,
+      if (data.success) {
+        alert('Đăng ký công nhân thành công!');
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+          phone: '',
+          avatar: '',
         });
-
-      if (insertError) {
-        console.error('Insert error:', insertError);
-        throw insertError;
+        navigate('/workers');
+      } else {
+        throw new Error(data.message || 'Failed to register worker');
       }
-
-      alert('Đăng ký công nhân thành công!');
-      navigate('/workers');
     } catch (error) {
       console.error('Error registering worker:', error);
-      alert(error.message || 'Có lỗi xảy ra khi đăng ký công nhân');
+      const errorMessage = error.response?.data?.message || error.message || 'Có lỗi xảy ra khi đăng ký công nhân';
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -192,7 +158,7 @@ const WorkerRegister = () => {
               <h2 className="text-2xl font-bold text-gray-900">Đăng ký công nhân mới</h2>
               <p className="text-gray-600">
                 Thêm công nhân vào hệ thống quản lý
-                {currentUser && ` - Company ID: ${currentUser.company_id}`}
+                {currentUser && ` - ${currentUser.name}`}
               </p>
             </div>
             <button

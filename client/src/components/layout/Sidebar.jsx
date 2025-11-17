@@ -14,12 +14,12 @@ const Sidebar = () => {
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/map', icon: MapPin, label: 'Bản đồ' },
-    { path: '/damages', icon: AlertTriangle, label: 'Hư hỏng' },
-    { path: '/tasks', icon: CheckCircle, label: 'Công việc' },
-    { path: '/reports', icon: BarChart3, label: 'Báo cáo' },
-    { path: '/workers', icon: Users, label: 'Công nhân' },
-    { path: '/settings', icon: Settings, label: 'Cài đặt' },
+    { path: '/map', icon: MapPin, label: 'Map' },
+    { path: '/damages', icon: AlertTriangle, label: 'Damage' },
+    { path: '/tasks', icon: CheckCircle, label: 'Work' },
+    { path: '/reports', icon: BarChart3, label: 'Report' },
+    { path: '/workers', icon: Users, label: 'Staff' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
   ];
 
   const handleLogout = async () => {
