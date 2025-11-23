@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import authRoutes from './routes/auth.routes.js';
 import staffRoutes from './routes/staff.routes.js';
 import damageRoutes from './routes/damage.routes.js';
+import taskRoutes from './routes/task.routes.js';
 import uploadRoutes from './routes/upload.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -50,6 +51,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/damages', damageRoutes);
+app.use('/api/tasks', taskRoutes);
 app.use('/api/upload', uploadRoutes);
 
 

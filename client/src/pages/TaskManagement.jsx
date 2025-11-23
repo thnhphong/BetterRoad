@@ -6,7 +6,7 @@ import {
   AlertTriangle, MapPin, Eye, Edit, Trash2, X, ArrowRight
 } from 'lucide-react';
 import Sidebar from '../components/layout/Sidebar';
-import { supabase } from '../lib/supabase';
+import api from '../lib/axios';
 
 const TaskManagement = () => {
   const navigate = useNavigate();
@@ -20,6 +20,17 @@ const TaskManagement = () => {
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    damage_id: '',
+    assigned_to: '',
+    priority: 'medium',
+    due_date: '',
+    notes: ''
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -30,50 +41,60 @@ const TaskManagement = () => {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          damage:damages(id, type, road:roads(name)),
-          assigned_user:assigned_to(id, name, email),
-          creator:created_by(name)
-        `)
-        .order('created_at', { ascending: false });
+      const { data } = await api.get('/tasks');
 
-      if (error) throw error;
-      setTasks(data || []);
+      if (data.success && data.data) {
+        // Transform data to match expected format
+        const transformedTasks = data.data.map(task => ({
+          ...task,
+          damage: task.damage || null,
+          assigned_user: task.assigned_staff ? {
+            id: task.assigned_staff.id,
+            name: task.assigned_staff.name,
+            email: task.assigned_staff.email
+          } : null
+        }));
+        setTasks(transformedTasks);
+      } else {
+        setTasks([]);
+      }
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      if (error.response?.status === 401) {
+        navigate('/login');
+      }
+      setTasks([]);
     } finally {
       setLoading(false);
     }
   };
 
   const fetchWorkers = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    const { data: userData } = await supabase
-      .from('users')
-      .select('company_id')
-      .eq('email', user.email)
-      .single();
-
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('company_id', userData.company_id)
-      .eq('role', 'worker')
-      .eq('is_active', true);
-
-    setWorkers(data || []);
+    try {
+      const { data } = await api.get('/tasks/staff');
+      if (data.success && data.data) {
+        setWorkers(data.data || []);
+      } else {
+        setWorkers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching workers:', error);
+      setWorkers([]);
+    }
   };
 
   const fetchDamages = async () => {
-    const { data } = await supabase
-      .from('damages')
-      .select('id, type, road:roads(name)')
-      .in('status', ['pending', 'confirmed']);
-
-    setDamages(data || []);
+    try {
+      const { data } = await api.get('/tasks/damages');
+      if (data.success && data.data) {
+        setDamages(data.data || []);
+      } else {
+        setDamages([]);
+      }
+    } catch (error) {
+      console.error('Error fetching damages:', error);
+      setDamages([]);
+    }
   };
 
   const columns = {
@@ -109,29 +130,100 @@ const TaskManagement = () => {
   const handleDeleteTask = async (taskId) => {
     if (!confirm('Bạn có chắc muốn xóa công việc này?')) return;
 
-    const { error } = await supabase
-      .from('tasks')
-      .delete()
-      .eq('id', taskId);
-
-    if (!error) {
-      fetchTasks();
+    try {
+      const { data } = await api.delete(`/tasks/${taskId}`);
+      if (data.success) {
+        fetchTasks();
+      } else {
+        alert(data.message || 'Có lỗi xảy ra khi xóa công việc');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi xóa công việc');
     }
   };
 
   const handleUpdateStatus = async (taskId, newStatus) => {
-    const updates = { status: newStatus };
-    if (newStatus === 'completed') {
-      updates.completed_at = new Date().toISOString();
+    try {
+      const updates = { status: newStatus };
+      if (newStatus === 'completed') {
+        updates.completed_at = new Date().toISOString();
+      }
+      if (newStatus === 'in_progress' && !tasks.find(t => t.id === taskId)?.started_at) {
+        updates.started_at = new Date().toISOString();
+      }
+
+      const { data } = await api.put(`/tasks/${taskId}`, updates);
+      if (data.success) {
+        fetchTasks();
+      } else {
+        alert(data.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
+    }
+  };
+
+  const handleCreateTask = async (e) => {
+    e.preventDefault();
+
+    // Validate form
+    const errors = {};
+    if (!formData.title.trim()) {
+      errors.title = 'Vui lòng nhập tiêu đề';
     }
 
-    const { error } = await supabase
-      .from('tasks')
-      .update(updates)
-      .eq('id', taskId);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
 
-    if (!error) {
-      fetchTasks();
+    try {
+      setSubmitting(true);
+
+      // Format due_date to ISO string if provided
+      const dueDateISO = formData.due_date && formData.due_date.trim() !== ''
+        ? new Date(formData.due_date).toISOString()
+        : null;
+
+      // Normalize empty strings to null
+      const payload = {
+        title: formData.title.trim(),
+        description: formData.description?.trim() || null,
+        damage_id: formData.damage_id && formData.damage_id.trim() !== '' ? formData.damage_id : null,
+        assigned_to: formData.assigned_to && formData.assigned_to.trim() !== '' ? formData.assigned_to : null,
+        priority: formData.priority,
+        due_date: dueDateISO,
+        notes: formData.notes?.trim() || null,
+      };
+
+      console.log('Creating task with payload:', payload);
+
+      const { data } = await api.post('/tasks', payload);
+
+      if (data.success) {
+        alert('Tạo công việc thành công!');
+        setShowCreateModal(false);
+        setFormData({
+          title: '',
+          description: '',
+          damage_id: '',
+          assigned_to: '',
+          priority: 'medium',
+          due_date: '',
+          notes: ''
+        });
+        setFormErrors({});
+        fetchTasks();
+      } else {
+        throw new Error(data.message || 'Failed to create task');
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi tạo công việc');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -139,7 +231,9 @@ const TaskManagement = () => {
     const matchSearch = task.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       task.description?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchPriority = filterPriority === 'all' || task.priority === filterPriority;
-    const matchAssignee = filterAssignee === 'all' || task.assigned_to === parseInt(filterAssignee);
+    const matchAssignee = filterAssignee === 'all' ||
+      (task.assigned_to && task.assigned_to.toString() === filterAssignee) ||
+      (task.assigned_staff && task.assigned_staff.id.toString() === filterAssignee);
     return matchSearch && matchPriority && matchAssignee;
   });
 
@@ -168,7 +262,7 @@ const TaskManagement = () => {
         {task.damage?.road && (
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
             <MapPin className="w-4 h-4" />
-            <span className="truncate">{task.damage.road.name}</span>
+            <span className="truncate">{task.damage.road.name || task.damage.title}</span>
           </div>
         )}
 
@@ -246,7 +340,7 @@ const TaskManagement = () => {
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition shadow-md"
             >
               <Plus className="w-5 h-5" />
               Tạo công việc mới
@@ -410,12 +504,12 @@ const TaskManagement = () => {
                           )}
                         </td>
                         <td className="px-6 py-4">
-                          {task.assigned_user ? (
+                          {task.assigned_staff || task.assigned_user ? (
                             <div className="flex items-center gap-2">
                               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                                {task.assigned_user.name.charAt(0)}
+                                {(task.assigned_staff?.name || task.assigned_user?.name || '').charAt(0)}
                               </div>
-                              <span className="text-gray-700">{task.assigned_user.name}</span>
+                              <span className="text-gray-700">{task.assigned_staff?.name || task.assigned_user?.name}</span>
                             </div>
                           ) : (
                             <span className="text-gray-400">Chưa giao</span>
@@ -482,6 +576,186 @@ const TaskManagement = () => {
         )}
       </main>
 
+      {/* Create Task Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-xl font-bold">Tạo công việc mới</h3>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setFormData({
+                    title: '',
+                    description: '',
+                    damage_id: '',
+                    assigned_to: '',
+                    priority: 'medium',
+                    due_date: '',
+                    notes: ''
+                  });
+                  setFormErrors({});
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <form onSubmit={handleCreateTask} className="space-y-4">
+                {/* Title */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tiêu đề <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => {
+                      setFormData({ ...formData, title: e.target.value });
+                      if (formErrors.title) setFormErrors({ ...formErrors, title: '' });
+                    }}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${formErrors.title ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                    placeholder="Nhập tiêu đề công việc"
+                    required
+                  />
+                  {formErrors.title && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.title}</p>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Mô tả
+                  </label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Nhập mô tả chi tiết công việc"
+                  />
+                </div>
+
+                {/* Damage Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Liên kết với hư hỏng
+                  </label>
+                  <select
+                    value={formData.damage_id}
+                    onChange={(e) => setFormData({ ...formData, damage_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">Không liên kết</option>
+                    {damages.map(damage => (
+                      <option key={damage.id} value={damage.id}>
+                        {damage.title || damage.type} - {damage.road?.name || 'N/A'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Assign To */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Giao cho
+                  </label>
+                  <select
+                    value={formData.assigned_to}
+                    onChange={(e) => setFormData({ ...formData, assigned_to: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">Chưa giao</option>
+                    {workers.map(worker => (
+                      <option key={worker.id} value={worker.id}>
+                        {worker.name} ({worker.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Priority */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Mức độ ưu tiên <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.priority}
+                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="low">Thấp</option>
+                    <option value="medium">Trung bình</option>
+                    <option value="high">Cao</option>
+                    <option value="urgent">Khẩn cấp</option>
+                  </select>
+                </div>
+
+                {/* Due Date */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hạn hoàn thành
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={formData.due_date}
+                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Ghi chú
+                  </label>
+                  <textarea
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Thêm ghi chú (nếu có)"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setFormData({
+                        title: '',
+                        description: '',
+                        damage_id: '',
+                        assigned_to: '',
+                        priority: 'medium',
+                        due_date: '',
+                        notes: ''
+                      });
+                      setFormErrors({});
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submitting ? 'Đang tạo...' : 'Tạo công việc'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Task Detail Modal */}
       {selectedTask && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -506,12 +780,12 @@ const TaskManagement = () => {
                   <div>
                     <div className="text-sm text-gray-500 mb-1">Người thực hiện</div>
                     <div className="flex items-center gap-2">
-                      {selectedTask.assigned_user ? (
+                      {selectedTask.assigned_staff || selectedTask.assigned_user ? (
                         <>
                           <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
-                            {selectedTask.assigned_user.name.charAt(0)}
+                            {(selectedTask.assigned_staff?.name || selectedTask.assigned_user?.name || '').charAt(0)}
                           </div>
-                          <span className="font-medium">{selectedTask.assigned_user.name}</span>
+                          <span className="font-medium">{selectedTask.assigned_staff?.name || selectedTask.assigned_user?.name}</span>
                         </>
                       ) : (
                         <span className="text-gray-400">Chưa giao</span>
@@ -536,12 +810,12 @@ const TaskManagement = () => {
                       {selectedTask.due_date ? new Date(selectedTask.due_date).toLocaleDateString('vi-VN') : 'Chưa có'}
                     </div>
                   </div>
-                  {selectedTask.damage?.road && (
+                  {selectedTask.damage && (
                     <div className="col-span-2">
-                      <div className="text-sm text-gray-500 mb-1">Vị trí</div>
+                      <div className="text-sm text-gray-500 mb-1">Liên kết với hư hỏng</div>
                       <div className="font-medium flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-gray-400" />
-                        {selectedTask.damage.road.name}
+                        {selectedTask.damage.title || selectedTask.damage.type} - {selectedTask.damage.road?.name || 'N/A'}
                       </div>
                     </div>
                   )}

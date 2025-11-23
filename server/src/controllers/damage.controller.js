@@ -23,7 +23,17 @@ export const createDamage = async (req, res) => {
       return errorResponse(res, 'Title and location are required', 400);
     }
 
-    if (!severity || (severity < 1 || severity > 5)) {
+    // Validate severity (can be string or number)
+    const validSeverities = ['low', 'medium', 'high', 'critical'];
+    const severityNum = typeof severity === 'string'
+      ? (severity === 'critical' ? 5 : severity === 'high' ? 4 : severity === 'medium' ? 3 : 2)
+      : severity;
+
+    if (typeof severity === 'string' && !validSeverities.includes(severity)) {
+      return errorResponse(res, `Invalid severity. Must be one of: ${validSeverities.join(', ')}`, 400);
+    }
+
+    if (typeof severity === 'number' && (severity < 1 || severity > 5)) {
       return errorResponse(res, 'Severity must be between 1 and 5', 400);
     }
 
@@ -33,7 +43,7 @@ export const createDamage = async (req, res) => {
     }
 
     // Validate status
-    const validStatuses = ['pending', 'confirmed', 'in_progress', 'completed', 'rejected'];
+    const validStatuses = ['pending', 'assigned', 'in_progress', 'completed', 'rejected'];
     if (status && !validStatuses.includes(status)) {
       return errorResponse(res, `Invalid status. Must be one of: ${validStatuses.join(', ')}`, 400);
     }
@@ -64,7 +74,7 @@ export const createDamage = async (req, res) => {
         reported_by: null, // Can be set later if needed
         title: title,
         description: description || null,
-        severity: severity,
+        severity: severity, // Can be string ('low', 'medium', 'high', 'critical') or number (1-5)
         status: status,
         location: location, // JSONB: {lat, lng, address}
         images: images.length > 0 ? images : null,
