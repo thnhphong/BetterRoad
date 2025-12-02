@@ -12,6 +12,7 @@ export const createTask = async (req, res) => {
       damage_id,
       assigned_to,
       priority = 'medium',
+      type,
       due_date,
       notes
     } = req.body;
@@ -26,6 +27,12 @@ export const createTask = async (req, res) => {
     const validPriorities = ['low', 'medium', 'high', 'urgent'];
     if (priority && !validPriorities.includes(priority)) {
       return errorResponse(res, `Invalid priority. Must be one of: ${validPriorities.join(', ')}`, 400);
+    }
+
+    // Validate type (if provided)
+    const validTypes = ['repair', 'survey'];
+    if (type && !validTypes.includes(type)) {
+      return errorResponse(res, `Invalid type. Must be one of: ${validTypes.join(', ')}`, 400);
     }
 
     // Normalize empty strings to null
@@ -106,6 +113,7 @@ export const createTask = async (req, res) => {
       // After fixing foreign keys, you can use: created_by: company?.auth_user_id || null
       title: title.trim(),
       description: description?.trim() || null,
+      type: type || 'repair',
       status: 'pending',
       priority: priority,
       due_date: due_date || null,
@@ -208,6 +216,7 @@ export const updateTask = async (req, res) => {
       assigned_to,
       status,
       priority,
+      type,
       due_date,
       started_at,
       completed_at,
@@ -242,6 +251,7 @@ export const updateTask = async (req, res) => {
     if (started_at !== undefined) updates.started_at = started_at || null;
     if (completed_at !== undefined) updates.completed_at = completed_at || null;
     if (notes !== undefined) updates.notes = notes || null;
+    if (type !== undefined) updates.type = type || null;
     updates.updated_at = new Date().toISOString();
 
     // If assigned_to is provided, verify it's a staff member of the company

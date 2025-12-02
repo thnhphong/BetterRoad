@@ -27,10 +27,13 @@ const TaskManagement = () => {
     assigned_to: '',
     priority: 'medium',
     due_date: '',
-    notes: ''
+    notes: '',
+    type: 'repair' // 'repair' or 'survey'
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [createTypeLocked, setCreateTypeLocked] = useState(false);
+  const [lockedType, setLockedType] = useState(null);
 
   useEffect(() => {
     fetchTasks();
@@ -194,6 +197,7 @@ const TaskManagement = () => {
         damage_id: formData.damage_id && formData.damage_id.trim() !== '' ? formData.damage_id : null,
         assigned_to: formData.assigned_to && formData.assigned_to.trim() !== '' ? formData.assigned_to : null,
         priority: formData.priority,
+        type: formData.type || 'repair',
         due_date: dueDateISO,
         notes: formData.notes?.trim() || null,
       };
@@ -212,9 +216,12 @@ const TaskManagement = () => {
           assigned_to: '',
           priority: 'medium',
           due_date: '',
-          notes: ''
+          notes: '',
+          type: 'repair'
         });
         setFormErrors({});
+        setCreateTypeLocked(false);
+        setLockedType(null);
         fetchTasks();
       } else {
         throw new Error(data.message || 'Failed to create task');
@@ -333,19 +340,60 @@ const TaskManagement = () => {
       <main className="flex-1 ml-64">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 px-8 py-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">Quản lý công việc</h2>
-              <p className="text-gray-600">Theo dõi và phân công công việc sửa chữa</p>
-            </div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition shadow-md"
-            >
-              <Plus className="w-5 h-5" />
-              Tạo công việc mới
-            </button>
-          </div>
+           <div className="flex items-center justify-between mb-4">
+  <div>
+    <h2 className="text-2xl font-bold text-gray-900">Quản lý công việc</h2>
+    <p className="text-gray-600">Theo dõi và phân công công việc sửa chữa</p>
+  </div>
+
+  {/* Group button */}
+  <div className="flex items-center gap-3">
+    <button
+      onClick={() => {
+        setFormData({
+          title: '',
+          description: '',
+          damage_id: '',
+          assigned_to: '',
+          priority: 'medium',
+          due_date: '',
+          notes: '',
+          type: 'repair'
+        });
+        setCreateTypeLocked(true);
+        setLockedType('repair');
+        setShowCreateModal(true);
+      }}
+      className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition shadow-md"
+    >
+      <Plus className="w-5 h-5" />
+      Tạo công việc sửa chữa
+    </button>
+
+    <button
+      onClick={() => {
+        setFormData({
+          title: '',
+          description: '',
+          damage_id: '',
+          assigned_to: '',
+          priority: 'medium',
+          due_date: '',
+          notes: '',
+          type: 'survey'
+        });
+        setCreateTypeLocked(true);
+        setLockedType('survey');
+        setShowCreateModal(true);
+      }}
+      className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition shadow-md"
+    >
+      <Plus className="w-5 h-5" />
+      Tạo công việc khảo sát
+    </button>
+  </div>
+</div>
+
 
           {/* Stats */}
           <div className="grid grid-cols-4 gap-4">
@@ -592,9 +640,12 @@ const TaskManagement = () => {
                     assigned_to: '',
                     priority: 'medium',
                     due_date: '',
-                    notes: ''
+                    notes: '',
+                    type: 'repair'
                   });
                   setFormErrors({});
+                  setCreateTypeLocked(false);
+                  setLockedType(null);
                 }}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
@@ -640,21 +691,37 @@ const TaskManagement = () => {
                 </div>
 
                 {/* Damage Selection */}
+                {formData.type !== 'survey' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Liên kết với hư hỏng
+                    </label>
+                    <select
+                      value={formData.damage_id}
+                      onChange={(e) => setFormData({ ...formData, damage_id: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="">Không liên kết</option>
+                      {damages.map(damage => (
+                        <option key={damage.id} value={damage.id}>
+                          {damage.title || damage.type} - {damage.road?.name || 'N/A'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Type (survey / repair) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Liên kết với hư hỏng
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Loại công việc</label>
                   <select
-                    value={formData.damage_id}
-                    onChange={(e) => setFormData({ ...formData, damage_id: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    disabled={createTypeLocked}
+                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent ${createTypeLocked ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   >
-                    <option value="">Không liên kết</option>
-                    {damages.map(damage => (
-                      <option key={damage.id} value={damage.id}>
-                        {damage.title || damage.type} - {damage.road?.name || 'N/A'}
-                      </option>
-                    ))}
+                    <option value="repair">Sửa chữa</option>
+                    <option value="survey">Khảo sát</option>
                   </select>
                 </div>
 
@@ -734,9 +801,12 @@ const TaskManagement = () => {
                         assigned_to: '',
                         priority: 'medium',
                         due_date: '',
-                        notes: ''
+                        notes: '',
+                        type: 'repair'
                       });
                       setFormErrors({});
+                      setCreateTypeLocked(false);
+                      setLockedType(null);
                     }}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
