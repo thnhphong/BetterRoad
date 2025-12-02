@@ -17,13 +17,33 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const createCustomIcon = (severity) => {
+// Update createCustomIcon to handle completed status and severity levels
+const createCustomIcon = (severity, isCompleted = false) => {
+  if (isCompleted) {
+    return L.divIcon({
+      html: `
+        <div style="
+          background-color: #22c55e;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          border: 3px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        "></div>
+      `,
+      className: 'custom-marker',
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
+      popupAnchor: [0, -14]
+    });
+  }
+
   const colors = {
-    1: '#10b981',
-    2: '#10b981',
-    3: '#f59e0b',
-    4: '#ef4444',
-    5: '#ef4444',
+    1: '#10b981', // low - green
+    2: '#10b981', // low - green
+    3: '#eab308', // medium - yellow
+    4: '#f97316', // high - orange
+    5: '#ef4444', // critical - red
   };
 
   const color = colors[severity] || colors[3];
@@ -54,6 +74,8 @@ const RoadMap = () => {
 
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedDamage, setSelectedDamage] = useState(null);
+  // before/after images for the selected damage (before: damage.images, after: from tasks.notes)
+  const [loadingDamageImages, setLoadingDamageImages] = useState(false);
   const [loading, setLoading] = useState(true);
   const [damages, setDamages] = useState([]);
   const [roads, setRoads] = useState([]);
@@ -145,9 +167,41 @@ const RoadMap = () => {
 
   // Helper function to create popup content (used by both initializeMap and useEffect)
   const createPopupContent = (damage) => {
-    // Build images HTML
-    const imagesHtml = damage.images && damage.images.length > 0
-      ? `
+    const isCompleted = damage.status === 'completed';
+    
+    // Build images HTML - show before/after if completed
+    let imagesHtml = '';
+    if (isCompleted && damage.repair_images && damage.repair_images.length > 0) {
+      // Show before and after images
+      imagesHtml = `
+        <div style="margin-bottom: 8px;">
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Trước khi sửa:</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;">
+            ${(damage.images || []).slice(0, 2).map((img, idx) => `
+              <img 
+                src="${img}" 
+                alt="Before image ${idx + 1}"
+                style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e5e7eb;"
+                onclick="window.openImageModal('${img.replace(/'/g, "\\'")}')"
+              />
+            `).join('')}
+          </div>
+          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Sau khi sửa:</div>
+          <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+            ${damage.repair_images.slice(0, 2).map((img, idx) => `
+              <img 
+                src="${img}" 
+                alt="After image ${idx + 1}"
+                style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; cursor: pointer; border: 1px solid #e5e7eb;"
+                onclick="window.openImageModal('${img.replace(/'/g, "\\'")}')"
+              />
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } else if (damage.images && damage.images.length > 0) {
+      // Show only before images
+      imagesHtml = `
         <div style="margin-bottom: 8px;">
           <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Hình ảnh:</div>
           <div style="display: flex; gap: 4px; flex-wrap: wrap;">
@@ -163,8 +217,8 @@ const RoadMap = () => {
             ${damage.images.length > 3 ? `<div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border-radius: 4px; font-size: 10px; color: #6b7280;">+${damage.images.length - 3}</div>` : ''}
           </div>
         </div>
-      `
-      : '';
+      `;
+    }
 
     return `
       <div style="min-width: 250px; max-width: 300px; padding: 8px;">
@@ -250,6 +304,58 @@ const RoadMap = () => {
       delete window.openImageModal;
     };
   }, [damages]);
+
+  // When a damage is selected, load before images from the damage record and
+  // after images by fetching tasks and parsing URLs from task.notes (Cloudinary links).
+  useEffect(() => {
+    if (!selectedDamage) return;
+
+    const loadImages = async () => {
+      setLoadingDamageImages(true);
+
+      // Before images come from damage.images (array)
+      const before = Array.isArray(selectedDamage.images) ? selectedDamage.images : [];
+
+      // Default to empty after images
+      let after = [];
+
+      try {
+        const { data } = await api.get('/tasks');
+        if (data && data.success && Array.isArray(data.data)) {
+          // Find tasks related to this damage (task.damage or task.damage_id)
+          const tasks = data.data.filter(t => {
+            if (!t) return false;
+            if (t.damage && (t.damage.id === selectedDamage.id || t.damage === selectedDamage.id)) return true;
+            if (t.damage_id && (t.damage_id === selectedDamage.id || String(t.damage_id) === String(selectedDamage.id))) return true;
+            return false;
+          });
+
+          // Regex to capture image URLs (jpg/png/webp/etc.)
+          const urlRegex = /(https?:\/\/[^\s'"<>]+\.(?:jpg|jpeg|png|gif|webp))/gi;
+
+          tasks.forEach(t => {
+            if (!t || !t.notes) return;
+            const notes = String(t.notes);
+            const matches = [];
+            let m;
+            // eslint-disable-next-line no-cond-assign
+            while ((m = urlRegex.exec(notes)) !== null) {
+              matches.push(m[1]);
+            }
+            if (matches.length) after = after.concat(matches);
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching tasks to extract after-images:', err);
+      }
+
+      // Attach arrays to selectedDamage so modal code can use selectedDamage.before_images / after_images
+      setSelectedDamage(prev => ({ ...(prev || {}), before_images: before, after_images: after }));
+      setLoadingDamageImages(false);
+    };
+
+    loadImages();
+  }, [selectedDamage?.id]);
 
   const getTypeLabel = (type) => {
     const types = {
@@ -355,14 +461,26 @@ const RoadMap = () => {
         ? (damage.severity === 'critical' ? 5 : damage.severity === 'high' ? 4 : damage.severity === 'medium' ? 3 : 2)
         : damage.severity;
 
+      const isCompleted = damage.status === 'completed';
+
       const marker = L.marker([lat, lng], {
-        icon: createCustomIcon(severityNum)
+        icon: createCustomIcon(severityNum, isCompleted)
       }).addTo(mapInstanceRef.current);
+
+      let circleColor = '#10b981'; // low
+      if (isCompleted) {
+        circleColor = '#22c55e'; // completed - light green
+      } else if (severityNum === 5) {
+        circleColor = '#ef4444'; // critical - red
+      } else if (severityNum === 4) {
+        circleColor = '#f97316'; // high - orange
+      } else if (severityNum === 3) {
+        circleColor = '#eab308'; // medium - yellow
+      }
 
       L.circle([lat, lng], {
         radius: 15,
-        fillColor: severityNum >= 4 ? '#ef4444' :
-          severityNum === 3 ? '#f59e0b' : '#10b981',
+        fillColor: circleColor,
         fillOpacity: 0.2,
         color: '#fff',
         weight: 2
@@ -538,6 +656,11 @@ const RoadMap = () => {
                       <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusBadge(damage.status).color}`}>
                         {getStatusBadge(damage.status).text}
                       </span>
+                      {!damage.has_task && damage.status !== 'completed' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800">
+                          Chưa tạo công việc
+                        </span>
+                      )}
                       <span className="text-xs text-gray-400">
                         {damage.created_at ? new Date(damage.created_at).toLocaleDateString('vi-VN') : 'N/A'}
                       </span>
@@ -559,16 +682,24 @@ const RoadMap = () => {
             <h4 className="font-semibold mb-3 text-sm">Chú thích</h4>
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <span className="text-sm text-gray-600">Nghiêm trọng</span>
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
+                <span className="text-sm text-gray-600">Critical</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span className="text-sm text-gray-600">Trung bình</span>
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#f97316' }}></div>
+                <span className="text-sm text-gray-600">High</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                <span className="text-sm text-gray-600">Nhẹ</span>
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#eab308' }}></div>
+                <span className="text-sm text-gray-600">Medium</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10b981' }}></div>
+                <span className="text-sm text-gray-600">Low</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#22c55e' }}></div>
+                <span className="text-sm text-gray-600">Đã sửa chữa</span>
               </div>
             </div>
           </div>
@@ -588,7 +719,7 @@ const RoadMap = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 200px)' }}>
               <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
                   <div className="text-sm text-gray-500 mb-1">Loại hư hỏng</div>
@@ -615,13 +746,62 @@ const RoadMap = () => {
                   <div className="text-gray-900">{selectedDamage.description || 'Không có mô tả'}</div>
                 </div>
               </div>
+
+              {(selectedDamage.before_images || selectedDamage.after_images) && (
+                <div className="mb-6">
+                  <div className="text-sm text-gray-500 mb-3 font-medium">Hình ảnh trước và sau</div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {selectedDamage.before_images && selectedDamage.before_images.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-700 mb-2">Trước sửa chữa</div>
+                        <div className="space-y-2">
+                          {selectedDamage.before_images.map((img, idx) => (
+                            <img
+                              key={`before-${idx}`}
+                              src={img}
+                              alt={`Before damage ${idx + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition"
+                              onClick={() => window.openImageModal(img)}
+                              onError={(e) => {
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23f3f4f6%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%239ca3af%22 font-size=%2212%22%3EImage%3C/text%3E%3C/svg%3E';
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {selectedDamage.after_images && selectedDamage.after_images.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-700 mb-2">Sau sửa chữa</div>
+                        <div className="space-y-2">
+                          {selectedDamage.after_images.map((img, idx) => (
+                            <img
+                              key={`after-${idx}`}
+                              src={img}
+                              alt={`After damage ${idx + 1}`}
+                              className="w-full h-32 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-80 transition"
+                              onClick={() => window.openImageModal(img)}
+                              onError={(e) => {
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect width=%22100%22 height=%22100%22 fill=%22%23f3f4f6%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%239ca3af%22 font-size=%2212%22%3EImage%3C/text%3E%3C/svg%3E';
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3">
-                <button
-                  onClick={() => navigate(`/tasks?damage=${selectedDamage.id}`)}
-                  className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-                >
-                  Tạo công việc sửa chữa
-                </button>
+                {selectedDamage.status !== 'completed' && (
+                  <button
+                    onClick={() => navigate(`/tasks?damage=${selectedDamage.id}`)}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+                  >
+                    Tạo công việc sửa chữa
+                  </button>
+                )}
                 <button
                   onClick={() => setSelectedDamage(null)}
                   className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"

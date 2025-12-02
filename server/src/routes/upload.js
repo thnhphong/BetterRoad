@@ -52,4 +52,74 @@ router.post("/image", upload.single("image"), async (req, res) => {
   }
 });
 
+// POST /upload/video - Upload video file (from mobile app)
+router.post("/video", upload.single("video"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No video file uploaded'
+      });
+    }
+
+    const buffer = req.file.buffer;
+    const taskId = req.body.taskId || 'recording';
+    const gpsData = req.body.gpsData ? JSON.parse(req.body.gpsData) : [];
+
+    console.log('📹 Video upload request:', {
+      fileName: req.file.originalname,
+      fileSize: buffer.length,
+      mimeType: req.file.mimetype,
+      gpsPoints: gpsData.length,
+      taskId
+    });
+
+    // Upload to Cloudinary
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "videos/recordings",
+        resource_type: "video",
+        upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET || undefined,
+      },
+      (error, result) => {
+        if (error) {
+          console.error('❌ Cloudinary video upload error:', error);
+          return res.status(500).json({
+            success: false,
+            error: error.message || 'Cloudinary upload failed'
+          });
+        }
+
+        if (result) {
+          console.log('✅ Video uploaded successfully:', {
+            url: result.secure_url,
+            public_id: result.public_id,
+            duration: result.duration
+          });
+
+          return res.json({
+            success: true,
+            data: {
+              url: result.secure_url,
+              public_id: result.public_id,
+              duration: result.duration
+            },
+            url: result.secure_url, // Keep for backward compatibility
+            gpsData: gpsData,
+            taskId: taskId
+          });
+        }
+      }
+    );
+
+    streamifier.createReadStream(buffer).pipe(uploadStream);
+  } catch (error) {
+    console.error('❌ Video upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Upload failed'
+    });
+  }
+});
+
 export default router;

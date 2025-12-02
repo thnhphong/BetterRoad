@@ -53,6 +53,7 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/damages', damageRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/media', uploadRoutes); // Alias for mobile app compatibility
 
 
 
