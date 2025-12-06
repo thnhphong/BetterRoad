@@ -245,3 +245,196 @@ export const deleteStaff = async (req, res) => {
   }
 };
 
+export const getStaffById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const companyId = req.user.companyId;
+
+    // Fetch staff with tasks
+    const { data: staff, error: staffError } = await supabase
+      .from('staff')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (staffError || !staff) {
+      return errorResponse(res, 'Staff not found', 404);
+    }
+
+    // Verify staff belongs to the company
+    if (staff.company_id !== companyId) {
+      return errorResponse(res, 'Unauthorized', 403);
+    }
+
+    // Fetch staff's tasks
+    const { data: tasks, error: tasksError } = await supabase
+      .from('tasks')
+      .select(`
+        *,
+        damage:damages(
+          id,
+          type,
+          road:roads(name)
+        )
+      `)
+      .eq('assigned_to', id)
+      .order('created_at', { ascending: false });
+
+    if (tasksError) {
+      console.error('Get tasks error:', tasksError);
+    }
+
+    // Format staff data
+    const formattedStaff = {
+      id: staff.id,
+      name: staff.name,
+      email: staff.email,
+      phone: staff.phone,
+      avatar: staff.avatar,
+      role: staff.role,
+      is_active: staff.is_active,
+      created_at: staff.created_at,
+      updated_at: staff.updated_at,
+    };
+
+    // Calculate stats
+    const stats = {
+      total: tasks?.length || 0,
+      completed: tasks?.filter(t => t.status === 'completed').length || 0,
+      in_progress: tasks?.filter(t => t.status === 'in_progress').length || 0,
+      pending: tasks?.filter(t => t.status === 'pending' || t.status === 'assigned').length || 0,
+    };
+
+    return successResponse(
+      res,
+      {
+        staff: formattedStaff,
+        tasks: tasks || [],
+        stats,
+      },
+      'Staff retrieved successfully'
+    );
+  } catch (error) {
+    console.error('Get staff by ID error:', error);
+    return errorResponse(res, 'Failed to fetch staff', 500);
+  }
+};
+
+export const updateStaff = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, phone, avatar, role } = req.body;
+    const companyId = req.user.companyId;
+
+    // Verify staff belongs to the company
+    const { data: staff, error: fetchError } = await supabase
+      .from('staff')
+      .select('company_id, email')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !staff) {
+      return errorResponse(res, 'Staff not found', 404);
+    }
+
+    if (staff.company_id !== companyId) {
+      return errorResponse(res, 'Unauthorized', 403);
+    }
+
+    // Check if email is being changed and if it's already in use
+    if (email && email !== staff.email) {
+      const { data: existingStaff } = await supabase
+        .from('staff')
+        .select('email')
+        .eq('email', email)
+        .neq('id', id)
+        .single();
+
+      if (existingStaff) {
+        return errorResponse(res, 'Email already registered', 400);
+      }
+
+      const { data: existingCompany } = await supabase
+        .from('companies')
+        .select('email')
+        .eq('email', email)
+        .single();
+
+      if (existingCompany) {
+        return errorResponse(res, 'Email already registered as a company', 400);
+      }
+    }
+
+    // Validate role if provided
+    if (role) {
+      const validRoles = ['worker', 'supervisor', 'admin'];
+      if (!validRoles.includes(role)) {
+        return errorResponse(res, `Invalid role. Must be one of: ${validRoles.join(', ')}`, 400);
+      }
+    }
+
+    // Build update object
+    const updateData = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+    if (phone !== undefined) updateData.phone = phone || null;
+    if (avatar !== undefined) updateData.avatar = avatar || null;
+    if (role) updateData.role = role;
+
+    // Update staff
+    const { data: updatedStaff, error: updateError } = await supabase
+      .from('staff')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Update staff error:', updateError);
+      return errorResponse(res, 'Failed to update staff', 500);
+    }
+
+    // If email was changed, update auth user email
+    if (email && email !== staff.email) {
+      const { data: staffWithAuth } = await supabase
+        .from('staff')
+        .select('auth_user_id')
+        .eq('id', id)
+        .single();
+
+      if (staffWithAuth?.auth_user_id) {
+        const { error: authError } = await supabase.auth.admin.updateUserById(
+          staffWithAuth.auth_user_id,
+          { email }
+        );
+
+        if (authError) {
+          console.error('Update auth email error:', authError);
+          // Don't fail the request, just log the error
+        }
+      }
+    }
+
+    return successResponse(
+      res,
+      {
+        id: updatedStaff.id,
+        name: updatedStaff.name,
+        email: updatedStaff.email,
+        phone: updatedStaff.phone,
+        avatar: updatedStaff.avatar,
+        role: updatedStaff.role,
+        is_active: updatedStaff.is_active,
+        updated_at: updatedStaff.updated_at,
+      },
+      'Staff updated successfully'
+    );
+  } catch (error) {
+    console.error('Update staff error:', error);
+    return errorResponse(res, 'Failed to update staff', 500);
+  }
+};
+

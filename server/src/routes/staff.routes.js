@@ -5,6 +5,8 @@ import express from 'express';
 import {
   registerStaff,
   getStaffList,
+  getStaffById,
+  updateStaff,
   updateStaffStatus,
   deleteStaff
 } from '../controllers/staff.controller.js';
@@ -17,6 +19,12 @@ router.post('/register', authenticate, registerStaff);
 
 // Get list of staff (requires authentication - company admin)
 router.get('/', authenticate, getStaffList);
+
+// Get single staff member (requires authentication - company admin)
+router.get('/:id', authenticate, getStaffById);
+
+// Update staff (requires authentication - company admin)
+router.put('/:id', authenticate, updateStaff);
 
 // Update staff status (requires authentication - company admin)
 router.patch('/:id/status', authenticate, updateStaffStatus);

@@ -6,7 +6,7 @@ import {
   Clock, AlertTriangle, ArrowLeft, UserCheck, UserX
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
-import { supabase } from '../../lib/supabase';
+import api from '../../lib/axios';
 
 const WorkerDetail = () => {
   const navigate = useNavigate();
@@ -29,74 +29,71 @@ const WorkerDetail = () => {
     try {
       setLoading(true);
 
-      // Fetch worker info
-      const { data: workerData, error: workerError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', id)
-        .single();
+      // Fetch worker info and tasks from API
+      const { data } = await api.get(`/staff/${id}`);
 
-      if (workerError) throw workerError;
-      setWorker(workerData);
-
-      // Fetch worker's tasks
-      const { data: tasksData, error: tasksError } = await supabase
-        .from('tasks')
-        .select(`
-          *,
-          damage:damages(
-            id,
-            type,
-            road:roads(name)
-          )
-        `)
-        .eq('assigned_to', id)
-        .order('created_at', { ascending: false });
-
-      if (tasksError) throw tasksError;
-      setTasks(tasksData || []);
-
-      // Calculate stats
-      const taskStats = {
-        total: tasksData?.length || 0,
-        completed: tasksData?.filter(t => t.status === 'completed').length || 0,
-        in_progress: tasksData?.filter(t => t.status === 'in_progress').length || 0,
-        pending: tasksData?.filter(t => t.status === 'pending' || t.status === 'assigned').length || 0,
-      };
-      setStats(taskStats);
-
+      if (data.success) {
+        setWorker(data.data.staff);
+        setTasks(data.data.tasks || []);
+        setStats(data.data.stats || {
+          total: 0,
+          completed: 0,
+          in_progress: 0,
+          pending: 0,
+        });
+      } else {
+        throw new Error(data.message || 'Failed to fetch worker data');
+      }
     } catch (error) {
       console.error('Error fetching worker data:', error);
-      alert('Không tìm thấy thông tin công nhân');
-      navigate('/workers');
+      if (error.response?.status === 401) {
+        alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+        navigate('/login');
+      } else if (error.response?.status === 404) {
+        alert('Không tìm thấy thông tin công nhân');
+        navigate('/workers');
+      } else {
+        const errorMessage = error.response?.data?.message || error.message || 'Có lỗi xảy ra khi tải thông tin công nhân';
+        alert(errorMessage);
+        navigate('/workers');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleToggleStatus = async () => {
-    const { error } = await supabase
-      .from('users')
-      .update({ is_active: !worker.is_active })
-      .eq('id', id);
+    try {
+      const { data } = await api.patch(`/staff/${id}/status`, {
+        is_active: !worker.is_active
+      });
 
-    if (!error) {
-      fetchWorkerData();
+      if (data.success) {
+        fetchWorkerData();
+      } else {
+        alert(data.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
     }
   };
 
   const handleDeleteWorker = async () => {
     if (!confirm('Bạn có chắc muốn xóa công nhân này? Tất cả công việc liên quan sẽ bị ảnh hưởng.')) return;
 
-    const { error } = await supabase
-      .from('users')
-      .delete()
-      .eq('id', id);
+    try {
+      const { data } = await api.delete(`/staff/${id}`);
 
-    if (!error) {
-      navigate('/workers');
-    } else {
-      alert('Không thể xóa công nhân. Có thể có công việc đang thực hiện.');
+      if (data.success) {
+        navigate('/workers');
+      } else {
+        alert(data.message || 'Có lỗi xảy ra khi xóa công nhân');
+      }
+    } catch (error) {
+      console.error('Error deleting worker:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Có lỗi xảy ra khi xóa công nhân. Có thể có công việc đang thực hiện.';
+      alert(errorMessage);
     }
   };
 
@@ -195,8 +192,8 @@ const WorkerDetail = () => {
               <button
                 onClick={handleToggleStatus}
                 className={`flex items-center gap-2 px-4 py-2 border rounded-lg ${worker.is_active
-                    ? 'border-gray-300 hover:bg-gray-50'
-                    : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
+                  ? 'border-gray-300 hover:bg-gray-50'
+                  : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
                   }`}
               >
                 {worker.is_active ? (
@@ -240,8 +237,8 @@ const WorkerDetail = () => {
                   </div>
                   <h3 className="text-xl font-bold text-gray-900">{worker.name}</h3>
                   <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold ${worker.is_active
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-gray-100 text-gray-800'
                     }`}>
                     {worker.is_active ? 'Đang hoạt động' : 'Không hoạt động'}
                   </span>
@@ -393,13 +390,21 @@ const WorkerDetail = () => {
                           </span>
                         </div>
 
-                        <p className="text-sm text-gray-600 mb-3">{task.description}</p>
+                        <p className="text-sm text-gray-600 mb-3">{task.description || 'Không có mô tả'}</p>
 
                         <div className="flex items-center gap-4 text-sm text-gray-500">
-                          {task.damage?.road && (
+                          {task.damage ? (
                             <div className="flex items-center gap-1">
                               <AlertTriangle className="w-4 h-4" />
-                              <span>{getTypeLabel(task.damage.type)} - {task.damage.road.name}</span>
+                              <span>
+                                {task.damage.type ? getTypeLabel(task.damage.type) : 'Không xác định'}
+                                {task.damage.road ? ` - ${task.damage.road.name}` : ''}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <AlertTriangle className="w-4 h-4" />
+                              <span>Không có thông tin hư hỏng</span>
                             </div>
                           )}
                           <div className="flex items-center gap-1">

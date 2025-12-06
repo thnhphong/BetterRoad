@@ -17,6 +17,7 @@ import Settings from './pages/Settings';
 // Worker pages
 import WorkerList from './pages/workers/WorkerList';
 import WorkerDetail from './pages/workers/WorkerDetail';
+import WorkerEdit from './pages/workers/WorkerEdit';
 import WorkerRegister from './pages/workers/WorkerRegister';
 
 function App() {
@@ -98,6 +99,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['admin', 'supervisor']}>
               <WorkerDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/workers/:id/edit"
+          element={
+            <ProtectedRoute allowedRoles={['admin', 'supervisor']}>
+              <WorkerEdit />
             </ProtectedRoute>
           }
         />
