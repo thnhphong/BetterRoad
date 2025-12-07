@@ -250,7 +250,7 @@ export const getStaffById = async (req, res) => {
     const { id } = req.params;
     const companyId = req.user.companyId;
 
-    // Fetch staff with tasks
+    // Fetch staff
     const { data: staff, error: staffError } = await supabase
       .from('staff')
       .select('*')
@@ -266,24 +266,6 @@ export const getStaffById = async (req, res) => {
       return errorResponse(res, 'Unauthorized', 403);
     }
 
-    // Fetch staff's tasks
-    const { data: tasks, error: tasksError } = await supabase
-      .from('tasks')
-      .select(`
-        *,
-        damage:damages(
-          id,
-          type,
-          road:roads(name)
-        )
-      `)
-      .eq('assigned_to', id)
-      .order('created_at', { ascending: false });
-
-    if (tasksError) {
-      console.error('Get tasks error:', tasksError);
-    }
-
     // Format staff data
     const formattedStaff = {
       id: staff.id,
@@ -297,20 +279,10 @@ export const getStaffById = async (req, res) => {
       updated_at: staff.updated_at,
     };
 
-    // Calculate stats
-    const stats = {
-      total: tasks?.length || 0,
-      completed: tasks?.filter(t => t.status === 'completed').length || 0,
-      in_progress: tasks?.filter(t => t.status === 'in_progress').length || 0,
-      pending: tasks?.filter(t => t.status === 'pending' || t.status === 'assigned').length || 0,
-    };
-
     return successResponse(
       res,
       {
         staff: formattedStaff,
-        tasks: tasks || [],
-        stats,
       },
       'Staff retrieved successfully'
     );

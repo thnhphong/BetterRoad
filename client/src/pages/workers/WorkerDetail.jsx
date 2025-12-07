@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  User, Mail, Phone, Calendar, Edit, Trash2, CheckCircle,
-  Clock, AlertTriangle, ArrowLeft, UserCheck, UserX
+  User, Mail, Phone, Calendar, Edit, Trash2,
+  AlertTriangle, ArrowLeft, UserCheck, UserX
 } from 'lucide-react';
 import Sidebar from '../../components/layout/Sidebar';
 import api from '../../lib/axios';
@@ -13,13 +13,6 @@ const WorkerDetail = () => {
   const { id } = useParams();
   const [loading, setLoading] = useState(true);
   const [worker, setWorker] = useState(null);
-  const [tasks, setTasks] = useState([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    completed: 0,
-    in_progress: 0,
-    pending: 0,
-  });
 
   useEffect(() => {
     fetchWorkerData();
@@ -34,13 +27,6 @@ const WorkerDetail = () => {
 
       if (data.success) {
         setWorker(data.data.staff);
-        setTasks(data.data.tasks || []);
-        setStats(data.data.stats || {
-          total: 0,
-          completed: 0,
-          in_progress: 0,
-          pending: 0,
-        });
       } else {
         throw new Error(data.message || 'Failed to fetch worker data');
       }
@@ -97,38 +83,6 @@ const WorkerDetail = () => {
     }
   };
 
-  const getTypeLabel = (type) => {
-    const types = {
-      crack: 'Nứt vỡ',
-      pothole: 'Ổ gà',
-      rutting: 'Rãnh bánh xe',
-      raveling: 'Bong tróc',
-      depression: 'Lún',
-      other: 'Khác',
-    };
-    return types[type] || type;
-  };
-
-  const getStatusBadge = (status) => {
-    const badges = {
-      pending: { text: 'Chờ xử lý', color: 'bg-yellow-100 text-yellow-800' },
-      assigned: { text: 'Đã giao', color: 'bg-blue-100 text-blue-800' },
-      in_progress: { text: 'Đang thực hiện', color: 'bg-blue-100 text-blue-800' },
-      completed: { text: 'Hoàn thành', color: 'bg-green-100 text-green-800' },
-      cancelled: { text: 'Đã hủy', color: 'bg-gray-100 text-gray-800' },
-    };
-    return badges[status] || badges.pending;
-  };
-
-  const getPriorityBadge = (priority) => {
-    const badges = {
-      urgent: { text: 'Khẩn cấp', color: 'bg-red-100 text-red-800' },
-      high: { text: 'Cao', color: 'bg-orange-100 text-orange-800' },
-      medium: { text: 'Trung bình', color: 'bg-yellow-100 text-yellow-800' },
-      low: { text: 'Thấp', color: 'bg-green-100 text-green-800' },
-    };
-    return badges[priority] || badges.medium;
-  };
 
   if (loading) {
     return (
@@ -227,206 +181,60 @@ const WorkerDetail = () => {
         </header>
 
         <div className="p-8">
-          <div className="grid grid-cols-3 gap-6 mb-8">
+          <div className="max-w-2xl mx-auto">
             {/* Worker Info Card */}
-            <div className="col-span-1">
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="text-center mb-6">
-                  <div className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-bold mx-auto mb-4">
-                    {worker.name.charAt(0)}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900">{worker.name}</h3>
-                  <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold ${worker.is_active
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-800'
-                    }`}>
-                    {worker.is_active ? 'Đang hoạt động' : 'Không hoạt động'}
-                  </span>
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <div className="text-center mb-6">
+                <div className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-bold mx-auto mb-4">
+                  {worker.name.charAt(0)}
                 </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 text-gray-700">
-                    <Mail className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <div className="text-sm text-gray-500">Email</div>
-                      <div className="font-medium">{worker.email}</div>
-                    </div>
-                  </div>
-
-                  {worker.phone && (
-                    <div className="flex items-center gap-3 text-gray-700">
-                      <Phone className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <div className="text-sm text-gray-500">Số điện thoại</div>
-                        <div className="font-medium">{worker.phone}</div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-3 text-gray-700">
-                    <Calendar className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <div className="text-sm text-gray-500">Ngày tham gia</div>
-                      <div className="font-medium">
-                        {new Date(worker.created_at).toLocaleDateString('vi-VN')}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-gray-700">
-                    <User className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <div className="text-sm text-gray-500">Vai trò</div>
-                      <div className="font-medium">Công nhân</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats & Tasks */}
-            <div className="col-span-2 space-y-6">
-              {/* Stats Cards */}
-              <div className="grid grid-cols-4 gap-4">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <CheckCircle className="w-8 h-8 text-blue-600" />
-                    <span className="text-2xl font-bold text-blue-700">{stats.total}</span>
-                  </div>
-                  <div className="text-sm text-blue-600">Tổng công việc</div>
-                </div>
-
-                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <CheckCircle className="w-8 h-8 text-green-600" />
-                    <span className="text-2xl font-bold text-green-700">{stats.completed}</span>
-                  </div>
-                  <div className="text-sm text-green-600">Hoàn thành</div>
-                </div>
-
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <Clock className="w-8 h-8 text-blue-600" />
-                    <span className="text-2xl font-bold text-blue-700">{stats.in_progress}</span>
-                  </div>
-                  <div className="text-sm text-blue-600">Đang làm</div>
-                </div>
-
-                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-lg border border-yellow-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <Clock className="w-8 h-8 text-yellow-600" />
-                    <span className="text-2xl font-bold text-yellow-700">{stats.pending}</span>
-                  </div>
-                  <div className="text-sm text-yellow-600">Chờ làm</div>
-                </div>
+                <h3 className="text-xl font-bold text-gray-900">{worker.name}</h3>
+                <span className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-semibold ${worker.is_active
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-100 text-gray-800'
+                  }`}>
+                  {worker.is_active ? 'Đang hoạt động' : 'Không hoạt động'}
+                </span>
               </div>
 
-              {/* Performance Chart */}
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Hiệu suất làm việc</h3>
-                <div className="space-y-3">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-gray-700">
+                  <Mail className="w-5 h-5 text-gray-400" />
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Tỷ lệ hoàn thành</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-green-500 h-3 rounded-full"
-                        style={{
-                          width: `${stats.total > 0 ? (stats.completed / stats.total) * 100 : 0}%`
-                        }}
-                      ></div>
+                    <div className="text-sm text-gray-500">Email</div>
+                    <div className="font-medium">{worker.email}</div>
+                  </div>
+                </div>
+
+                {worker.phone && (
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <Phone className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <div className="text-sm text-gray-500">Số điện thoại</div>
+                      <div className="font-medium">{worker.phone}</div>
                     </div>
                   </div>
+                )}
 
+                <div className="flex items-center gap-3 text-gray-700">
+                  <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-gray-600">Đang thực hiện</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        {stats.total > 0 ? Math.round((stats.in_progress / stats.total) * 100) : 0}%
-                      </span>
+                    <div className="text-sm text-gray-500">Ngày tham gia</div>
+                    <div className="font-medium">
+                      {new Date(worker.created_at).toLocaleDateString('vi-VN')}
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className="bg-blue-500 h-3 rounded-full"
-                        style={{
-                          width: `${stats.total > 0 ? (stats.in_progress / stats.total) * 100 : 0}%`
-                        }}
-                      ></div>
-                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 text-gray-700">
+                  <User className="w-5 h-5 text-gray-400" />
+                  <div>
+                    <div className="text-sm text-gray-500">Vai trò</div>
+                    <div className="font-medium">Công nhân</div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Tasks List */}
-          <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Lịch sử công việc</h3>
-            </div>
-
-            {tasks.length === 0 ? (
-              <div className="text-center py-12">
-                <CheckCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Chưa có công việc nào được giao</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-200">
-                {tasks.map(task => (
-                  <div key={task.id} className="p-6 hover:bg-gray-50 transition">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h4 className="font-semibold text-gray-900">{task.title}</h4>
-                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusBadge(task.status).color}`}>
-                            {getStatusBadge(task.status).text}
-                          </span>
-                          <span className={`px-2 py-1 rounded-full text-xs ${getPriorityBadge(task.priority).color}`}>
-                            {getPriorityBadge(task.priority).text}
-                          </span>
-                        </div>
-
-                        <p className="text-sm text-gray-600 mb-3">{task.description || 'Không có mô tả'}</p>
-
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          {task.damage ? (
-                            <div className="flex items-center gap-1">
-                              <AlertTriangle className="w-4 h-4" />
-                              <span>
-                                {task.damage.type ? getTypeLabel(task.damage.type) : 'Không xác định'}
-                                {task.damage.road ? ` - ${task.damage.road.name}` : ''}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <AlertTriangle className="w-4 h-4" />
-                              <span>Không có thông tin hư hỏng</span>
-                            </div>
-                          )}
-                          <div className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>
-                              {task.due_date ? new Date(task.due_date).toLocaleDateString('vi-VN') : 'Chưa có hạn'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => navigate(`/tasks/${task.id}`)}
-                        className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg"
-                      >
-                        Chi tiết
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </main>
